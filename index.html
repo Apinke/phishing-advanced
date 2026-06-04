@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phishing: Advanced Threat Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Exo+2:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#020408;--panel:#060E1A;--border:rgba(139,92,246,0.2);
+  --v1:#8B5CF6;--v2:#EC4899;--v3:#06B6D4;--v4:#10B981;
+  --danger:#F43F5E;--warn:#F59E0B;--safe:#10B981;--info:#06B6D4;
+  --text:#CBD5E1;--dim:#475569;--bright:#F1F5F9;
+}
+body{background:var(--bg);font-family:'JetBrains Mono',monospace;min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;
+  background-image:
+    radial-gradient(ellipse at 20% 20%,rgba(139,92,246,0.06) 0%,transparent 50%),
+    radial-gradient(ellipse at 80% 80%,rgba(236,72,153,0.04) 0%,transparent 50%);}
+
+.hdr{width:100%;padding:16px 20px;text-align:center;
+  background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.05));
+  border-bottom:1px solid var(--border);position:relative;}
+.hdr::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--v1),var(--v2),var(--v3));}
+.hdr h1{font-family:'Exo 2',sans-serif;font-size:1.4rem;font-weight:900;
+  background:linear-gradient(135deg,var(--v1),var(--v2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px;}
+.hdr p{font-size:0.72rem;color:var(--dim);margin-top:4px;}
+.level-badge{display:inline-block;margin-top:6px;padding:2px 12px;
+  background:linear-gradient(135deg,rgba(139,92,246,0.2),rgba(236,72,153,0.1));
+  border:1px solid rgba(139,92,246,0.4);border-radius:2px;
+  font-size:0.68rem;color:var(--v1);letter-spacing:2px;}
+
+.prog-wrap{width:100%;max-width:620px;padding:8px 16px;display:flex;align-items:center;gap:10px;}
+.prog-bar{flex:1;height:2px;background:rgba(255,255,255,0.06);}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--v1),var(--v2),var(--v3));transition:width 0.4s;}
+.prog-txt{font-size:0.68rem;color:var(--dim);white-space:nowrap;}
+
+.comic-wrap{width:100%;max-width:620px;padding:10px 16px;flex:1;}
+.book{width:100%;perspective:1600px;}
+.page{display:none;width:100%;}
+.page.active{display:block;}
+.page-inner{position:relative;width:100%;transform-style:preserve-3d;transition:transform 0.7s cubic-bezier(0.77,0,0.175,1);}
+.page-inner.flipped{transform:rotateY(-180deg);}
+.page-front,.page-back{width:100%;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  border-radius:4px;border:1px solid var(--border);overflow:hidden;
+  box-shadow:0 0 60px rgba(139,92,246,0.08),0 30px 80px rgba(0,0,0,0.7);}
+.page-back{position:absolute;top:0;left:0;transform:rotateY(180deg);
+  background:linear-gradient(160deg,#0A0518,#020408);
+  display:flex;align-items:center;justify-content:center;min-height:380px;}
+
+.comic-page{background:var(--panel);}
+.ch-header{padding:10px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,rgba(139,92,246,0.06),transparent);}
+.ch-num{font-size:0.62rem;color:var(--v1);letter-spacing:2px;font-weight:700;}
+.ch-title{font-family:'Exo 2',sans-serif;font-size:0.88rem;font-weight:700;color:var(--bright);letter-spacing:1px;}
+.ch-icon{font-size:1.2rem;}
+
+.panel{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.03);position:relative;}
+.panel:last-child{border-bottom:none;}
+.pl{border-left:2px solid var(--v1);}
+.pl2{border-left:2px solid var(--v2);}
+.pl3{border-left:2px solid var(--v3);}
+.pl4{border-left:2px solid var(--v4);}
+.pld{border-left:2px solid var(--danger);}
+.plw{border-left:2px solid var(--warn);}
+
+.narr{font-size:0.68rem;color:var(--dim);margin-bottom:8px;font-style:italic;}
+.speak{display:flex;gap:10px;align-items:flex-start;margin-bottom:6px;}
+.av{font-size:1.8rem;flex-shrink:0;line-height:1;}
+.bubble{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);
+  border-radius:6px;padding:8px 12px;font-size:0.82rem;color:var(--text);line-height:1.5;flex:1;}
+.bubble.evil{border-color:rgba(244,63,94,0.3);background:rgba(244,63,94,0.04);}
+.bubble.safe{border-color:rgba(16,185,129,0.3);background:rgba(16,185,129,0.04);}
+.bubble.info{border-color:rgba(6,182,212,0.3);background:rgba(6,182,212,0.04);}
+
+pre.code{background:#000;border:1px solid rgba(139,92,246,0.25);border-radius:4px;
+  padding:10px 12px;font-size:0.7rem;color:#a5f3fc;line-height:1.7;
+  overflow-x:auto;white-space:pre;margin:6px 0;}
+.c-comment{color:var(--dim);}
+.c-bad{color:var(--danger);}
+.c-good{color:var(--safe);}
+.c-warn{color:var(--warn);}
+.c-key{color:var(--v1);}
+.c-str{color:var(--v2);}
+
+.tbl{width:100%;border-collapse:collapse;margin:6px 0;font-size:0.72rem;}
+.tbl th{background:rgba(139,92,246,0.1);color:var(--v1);padding:5px 8px;text-align:left;
+  border-bottom:1px solid var(--border);font-size:0.62rem;letter-spacing:1px;}
+.tbl td{padding:5px 8px;color:var(--text);border-bottom:1px solid rgba(255,255,255,0.03);}
+.tbl tr:hover td{background:rgba(139,92,246,0.03);}
+.ok{color:var(--safe)}.ng{color:var(--danger)}.wr{color:var(--warn)}
+
+.tag{display:inline-block;padding:1px 7px;border-radius:2px;font-size:0.64rem;margin:2px;}
+.tg1{background:rgba(139,92,246,0.1);color:var(--v1);border:1px solid rgba(139,92,246,0.2);}
+.tg2{background:rgba(244,63,94,0.1);color:var(--danger);border:1px solid rgba(244,63,94,0.2);}
+.tg3{background:rgba(16,185,129,0.1);color:var(--safe);border:1px solid rgba(16,185,129,0.2);}
+
+.back-content{padding:24px 20px;width:100%;}
+.bch{font-size:0.62rem;color:var(--v1);letter-spacing:3px;margin-bottom:6px;}
+.bttl{font-family:'Exo 2',sans-serif;font-size:1.2rem;font-weight:900;color:var(--bright);margin-bottom:16px;
+  background:linear-gradient(135deg,var(--v1),var(--v2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.bpts{display:flex;flex-direction:column;gap:8px;}
+.bpt{background:rgba(255,255,255,0.02);border-left:2px solid var(--v1);
+  padding:9px 12px;border-radius:0 4px 4px 0;font-size:0.82rem;color:var(--text);line-height:1.5;}
+.bpt strong{color:var(--v3);}
+
+.controls{display:flex;align-items:center;gap:8px;width:100%;max-width:620px;padding:0 16px 14px;flex-wrap:wrap;justify-content:center;}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;font-family:'JetBrains Mono',monospace;
+  font-size:0.72rem;cursor:pointer;transition:all 0.15s;border-radius:2px;letter-spacing:1px;}
+.bn{background:transparent;color:var(--v1);border:1px solid rgba(139,92,246,0.4);flex:1;min-width:80px;justify-content:center;}
+.bn:hover:not(:disabled){background:rgba(139,92,246,0.1);box-shadow:0 0 12px rgba(139,92,246,0.2);}
+.bn:disabled{opacity:0.2;cursor:not-allowed;}
+.bf{background:transparent;color:var(--v4);border:1px solid rgba(16,185,129,0.4);flex:1;min-width:80px;justify-content:center;}
+.bf:hover{background:rgba(16,185,129,0.08);}
+.bt{background:transparent;color:var(--v2);border:1px solid rgba(236,72,153,0.3);}
+.bt:hover{background:rgba(236,72,153,0.06);}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:200;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:22px 18px;
+  max-width:440px;width:100%;max-height:82vh;overflow-y:auto;box-shadow:0 0 80px rgba(139,92,246,0.15);}
+.modal h2{font-family:'Exo 2',sans-serif;font-size:0.9rem;color:var(--v1);text-align:center;letter-spacing:2px;margin-bottom:14px;}
+.ti{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:3px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04);}
+.ti:hover{background:rgba(139,92,246,0.06);}
+.tn{width:26px;height:26px;background:rgba(139,92,246,0.1);border:1px solid var(--border);border-radius:2px;
+  display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--v1);flex-shrink:0;}
+.tc{font-size:0.62rem;color:var(--v1);letter-spacing:1px;}
+.ts{font-size:0.82rem;color:var(--text);font-weight:600;}
+.mc{width:100%;margin-top:12px;background:transparent;color:var(--dim);border:1px solid var(--border);
+  border-radius:2px;padding:8px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:0.72rem;letter-spacing:1px;}
+.hint{font-size:0.65rem;color:var(--dim);text-align:center;padding:0 16px 10px;}
+.footer{width:100%;text-align:center;padding:10px;font-size:0.62rem;color:var(--dim);border-top:1px solid var(--border);}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;">
+    <img src="data:image/jpeg;base64,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" alt="AFRALO ICANN At-Large" style="height:50px;width:auto;border-radius:4px;"/>
+    <div>
+      <h1 style="margin:0;">PHISHING: ADVANCED THREAT ANALYSIS</h1>
+      <p style="margin:4px 0 0;">Red Team Tactics · Detection Engineering · Zero-Trust Defence</p>
+      <div class="level-badge">◈◈◈ ADVANCED LEVEL</div>
+    </div>
+  </div>
+</div>
+<div class="prog-wrap">
+  <div class="prog-bar"><div class="prog-fill" id="pFill" style="width:10%"></div></div>
+  <div class="prog-txt" id="pTxt">01/10</div>
+</div>
+<div class="comic-wrap"><div class="book" id="book">
+
+<!-- PAGE 1 -->
+<div class="page active"><div class="page-inner">
+<div class="page-front"><div class="comic-page">
+  <div class="ch-header"><span class="ch-icon">⚔️</span><div><div class="ch-num">MODULE 01</div><div class="ch-title">AiTM PROXY ATTACK ARCHITECTURE</div></div></div>
+  <div class="panel pl">
+    <div class="narr">// Real-time credential interception bypassing MFA — Evilginx2 / Modlishka architecture</div>
+    <pre class="code"><span class="c-comment">// AiTM (Adversary-in-the-Middle) phishing flow:</span>
+victim_browser ──→ phishing_proxy ──→ legit_site
+                        ↑                  ↓
+                   intercepts:        forwards:
+                   • credentials      • all requests
+                   • session_token    • all responses
+                   • OTP codes        • page content
+
+<span class="c-comment">// What the proxy captures:</span>
+cookie = <span class="c-bad">"SessionToken=eyJhbGciOiJSUzI1NiJ9..."</span>
+<span class="c-comment">// Attacker replays this cookie → authenticated session</span>
+<span class="c-comment">// TOTP/SMS MFA = completely bypassed</span></pre>
+  </div>
+  <div class="panel pld">
+    <div class="speak"><div class="av">😈</div>
+    <div class="bubble evil">Evilginx config: phishlet targets Microsoft 365. Captures session cookie post-MFA. Victim sees legitimate Microsoft login — no indication of compromise.</div></div>
+  </div>
+  <div class="panel pl3">
+    <div class="speak"><div class="av">🛡️</div>
+    <div class="bubble info">FIDO2/Passkeys bind the credential cryptographically to the origin. Proxy gets an unusable assertion — token bound to phishing domain, rejected by real site.</div></div>
+    <div class="narr">// FIDO2 origin binding: the only reliable defence against AiTM</div>
+  </div>
+</div></div>
+<div class="page-back"><div class="back-content">
+  <div class="bch">MODULE 01</div>
+  <div class="bttl">AiTM Architecture</div>
+  <div class="bpts">
+    <div class="bpt"><strong>Evilginx2:</strong> Open-source AiTM framework using phishlets (reverse proxy configs per target). Captures session cookies post-authentication, defeating all OTP-based MFA.</div>
+    <div class="bpt"><strong>Detection signals:</strong> Unusual session token geography, concurrent sessions, token replay from different IP/UA, impossible travel in AAD/Okta sign-in logs.</div>
+    <div class="bpt"><strong>Conditional Access:</strong> Implement Continuous Access Evaluation (CAE) — revokes tokens in near-real-time based on risk signals even after authentication.</div>
+    <div class="bpt"><strong>FIDO2 deployment:</strong> Mandatory phishing-resistant MFA (FIDO2/passkeys) for all privileged roles. Token binding makes session theft cryptographically impossible.</div>
+  </div>
+</div></div>
+</div></div>
+
+<!-- PAGE 2 -->
+<div class="page"><div class="page-inner">
+<div class="page-front"><div class="comic-page">
+  <div class="ch-header"><span class="ch-icon">🧬</span><div><div class="ch-num">MODULE 02</div><div class="ch-title">ADVERSARIAL ML — EVADING DNS CLASSIFIERS</div></div></div>
+  <div class="panel pl2">
+    <div class="narr">// Black-box adversarial attack on production DNS classifier</div>
+    <pre class="code"><span class="c-comment">// Phase 1: Model probing via DNS resolver API</span>
+for domain in candidate_domains:
+    result = resolver.query(domain)  <span class="c-comment">// blocked or allowed?</span>
+    scores[domain] = infer_risk_score(result)
+
+<span class="c-comment">// Phase 2: Gradient estimation (finite differences)</span>
+def estimate_gradient(domain, eps=1):
+    perturbed = mutate(domain, position=i)
+    delta_score = query(perturbed) - query(domain)
+    return delta_score / eps
+
+<span class="c-comment">// Phase 3: Iterative evasion</span>
+while risk_score > THRESHOLD:
+    grad = estimate_gradient(current_domain)
+    current_domain = apply_perturbation(grad)
+    <span class="c-comment">// Converges in ~200 queries to evading domain</span></pre>
+  </div>
+  <div class="panel pl">
+    <div class="narr">// Evasion techniques against lexical classifiers:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
+      <span class="tag tg2">word insertion</span><span class="tag tg2">brand prefix/suffix</span>
+      <span class="tag tg2">entropy reduction</span><span class="tag tg2">vowel normalisation</span>
+      <span class="tag tg2">TLD substitution</span><span class="tag tg2">aged domain reuse</span>
+    </div>
+  </div>
+  <div class="panel pl4">
+    <div class="speak"><div class="av">🤖</div>
+    <div class="bubble safe">Adversarial training + ensemble diversity + rate limiting on classification APIs reduces evasion success from ~70% to &lt;15%.</div></div>
+  </div>
+</div></div>
+<div class="page-back"><div class="back-content">
+  <div class="bch">MODULE 02</div>
+  <div class="bttl">Adversarial Evasion</div>
+  <div class="bpts">
+    <div class="bpt"><strong>Black-box probing:</strong> Attackers query DNS filtering APIs with hundreds of domain variants, using the block/allow signal to estimate classifier gradients without model access.</div>
+    <div class="bpt"><strong>Adversarial training:</strong> Include adversarially crafted domains in training data. Models trained against known attack strategies are significantly more robust.</div>
+    <div class="bpt"><strong>Ensemble methods:</strong> Stack lexical, graph-relational, temporal, and infrastructure models. Adversarial examples that fool one model rarely fool all simultaneously.</div>
+    <div class="bpt"><strong>API rate limiting:</strong> Limit classification API queries per source IP/ASN. Probing attacks require hundreds of queries — rate limiting raises attacker cost significantly.</div>
+  </div>
+</div></div>
+</div></div>
+
+<!-- PAGE 3 -->
+<div class="page"><div class="page-inner">
+<div class="page-front"><div class="comic-page">
+  <div class="ch-header"><span class="ch-icon">🕸️</span><div><div class="ch-num">MODULE 03</div><div class="ch-title">PHISHING INFRASTRUCTURE GRAPH ANALYSIS</div></div></div>
+  <div class="panel pl3">
+    <div class="narr">// Graph-based detection: shared infrastructure reveals campaigns</div>
+    <pre class="code"><span class="c-comment">// Building the phishing infrastructure graph:</span>
+G = DiGraph()
+
+<span class="c-comment">// Nodes: domains, IPs, ASNs, certificates, registrars</span>
+G.add_node("phish-bank.ng",    type="domain",  risk=0.94)
+G.add_node("185.220.101.47",  type="ip",       rep="malicious")
+G.add_node("AS12345",          type="asn",      label="bulletproof")
+G.add_node("cert_AA:BB:CC",    type="cert",     age_h=2)
+
+<span class="c-comment">// Edges: resolves_to, shares_ip, issued_by, registered_by</span>
+G.add_edge("phish-bank.ng", "185.220.101.47", rel="resolves_to")
+G.add_edge("185.220.101.47", "AS12345",       rel="hosted_on")
+
+<span class="c-comment">// GNN propagates risk scores through graph:</span>
+<span class="c-comment">// guilt-by-association → new domains scored by neighbours</span></pre>
+  </div>
+  <div class="panel plw">
+    <div class="speak"><div class="av">📊</div>
+    <div class="bubble info">Graph analysis exposes entire phishing campaigns from a single known-bad domain. Attackers share IPs, ASNs, registrars — expanding one IOC reveals dozens.</div></div>
+    <div class="narr">// Tools: Maltego, SpiderFoot, DomainTools IRIS, Recorded Future</div>
+  </div>
+</div></div>
+<div class="page-back"><div class="back-content">
+  <div class="bch">MODULE 03</div>
+  <div class="bttl">Graph-Based Detection</div>
+  <div class="bpts">
+    <div class="bpt"><strong>Graph Neural Networks (GNNs):</strong> Model domain-IP-ASN-registrar relationships as a graph. Risk propagates from known-bad nodes to connected unknown nodes.</div>
+    <div class="bpt"><strong>Campaign attribution:</strong> Phishing operators reuse infrastructure — same ASN, registrar, certificate authority, hosting provider. One IOC expands to full campaign mapping.</div>
+    <div class="bpt"><strong>Passive DNS:</strong> Historical DNS resolution data (pDNS) reveals IP sharing patterns over time, exposing infrastructure reuse even after domain rotation.</div>
+    <div class="bpt"><strong>Implementation:</strong> Integrate pDNS feeds (Farsight DNSDB, PassiveTotal) with graph database (Neo4j) for real-time infrastructure correlation and campaign tracking.</div>
+  </div>
+</div></div>
+</div></div>
+
+<!-- PAGE 4 -->
+<div class="page"><div class="page-inner">
+<div class="page-front"><div class="comic-page">
+  <div class="ch-header"><span class="ch-icon">🧠</span><div><div class="ch-num">MODULE 04</div><div class="ch-title">LLM-POWERED SPEAR PHISHING GENERATION</div></div></div>
+  <div class="panel pld">
+    <div class="narr">// Automated OSINT-to-phish pipeline using LLMs</div>
+    <pre class="code"><span class="c-comment">// Step 1: Target profile from OSINT</span>
+profile = {
+  name: "Chidi Okonkwo",
+  role: "CFO, Lagos Fintech Ltd",
+  recent_post: "Excited about our Series B close!",
+  connections: ["John Smith (KPMG)", "Ada Obi (CBN)"],
+  email_pattern: "c.okonkwo@lagosfintech.ng"
+}
+
+<span class="c-comment">// Step 2: LLM generates personalised phish</span>
+prompt = f"Write a convincing email to {profile.name}
+           from {profile.connections[0]} about
+           post-Series-B compliance requirements..."
+
+<span class="c-comment">// Output: Perfect grammar, correct names, real context</span>
+<span class="c-comment">// No spelling errors, appropriate tone, plausible ask</span>
+<span class="c-bad">// Detection rate by humans: ~8%  (Stanford 2024)</span></pre>
+  </div>
+  <div class="panel pl4">
+    <div class="speak"><div class="av">🛡️</div>
+    <div class="bubble safe">Counter: LLM-generated email detection models (GPTZero-style), strict out-of-band verification protocols for financial requests, and FIDO2 prevent completion even on click.</div></div>
+  </div>
+</div></div>
+<div class="page-back"><div class="back-content">
+  <div class="bch">MODULE 04</div>
+  <div class="bttl">LLM Phishing Generation</div>
+  <div class="bpts">
+    <div class="bpt"><strong>Attack pipeline:</strong> OSINT scraping → profile enrichment → LLM prompt engineering → personalised email generation → automated domain + site deployment. Full cycle: &lt;30 minutes.</div>
+    <div class="bpt"><strong>Detection challenges:</strong> LLM-generated phishing defeats grammar/spelling heuristics entirely. Focus shifts to sender authentication (DMARC), URL analysis, and behavioural signals.</div>
+    <div class="bpt"><strong>LLM detection:</strong> Perplexity-based classifiers (LLM-generated text has lower perplexity against language models) can identify AI-authored emails with ~78% accuracy.</div>
+    <div class="bpt"><strong>Process control:</strong> The most robust defence is process — mandatory voice/video verification for wire transfers, regardless of email authenticity signals.</div>
+  </div>
+</div></div>
+</div></div>
+
+<!-- PAGE 5 -->
+<div class="page"><div class="page-inner">
+<div class="page-front"><div class="comic-page">
+  <div class="ch-header"><span class="ch-icon">🔬</span><div><div class="ch-num">MODULE 05</div><div class="ch-title">DNSSEC & RPKI — INFRASTRUCTURE HARDENING</div></div></div>
+  <div class="panel pl">
+    <div class="narr">// DNSSEC chain-of-trust verification against DNS hijacking in phishing campaigns</div>
+    <pre class="code"><span class="c-comment">// DNSSEC validation flow:</span>
+$ delv +rtrace +vtrace bank.com A
+
+<span class="c-comment">// Resolver validates signature chain:</span>
+. (root) KSK → DS hash → com. ZSK → DS hash →
+bank.com ZSK → RRSIG validates A record
+
+<span class="c-comment">// If attacker hijacks registrar and changes NS:</span>
+bank.com NS → attacker_ns.evil.com
+<span class="c-comment">// Result: DNSSEC validation FAILS (DS mismatch)</span>
+<span class="c-comment">// Validating resolvers return SERVFAIL → attack exposed</span>
+
+<span class="c-comment">// RPKI prevents BGP hijacking of DNS traffic:</span>
+ROA: 203.0.113.0/24 AS12345 maxLength=24
+<span class="c-bad">// Invalid BGP announcement → RPKI-invalid → dropped</span></pre>
+  </div>
+  <div class="panel pl3">
+    <div class="narr">// DNSSEC deployment check:</div>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;">
+      <code style="font-size:0.72rem;color:#a5f3fc;">dig bank.com DNSKEY +dnssec | grep "256\|257"</code>
+      <code style="font-size:0.72rem;color:#a5f3fc;">dig bank.com DS @8.8.8.8</code>
+      <code style="font-size:0.72rem;color:#a5f3fc;">delv bank.com A | grep "fully validated"</code>
+    </div>
+  </div>
+</div></div>
+<div class="page-back"><div class="back-content">
+  <div class="bch">MODULE 05</div>
+  <div class="bttl">DNSSEC + RPKI Hardening</div>
+  <div class="bpts">
+    <div class="bpt"><strong>DNSSEC against phishing:</strong> Signed zones with DS records in parent mean NS record hijacking (registrar compromise) causes DNSSEC validation failure — attack is cryptographically detectable.</div>
+    <div class="bpt"><strong>Registry Lock:</strong> Prevents NS record changes without out-of-band authorisation from domain owner. Critical for high-value domains targeted by phishing campaigns.</div>
+    <div class="bpt"><strong>RPKI (Resource PKI):</strong> Cryptographically validates BGP route origins. Prevents BGP hijacking used to redirect DNS resolver traffic to attacker-controlled infrastructure.</div>
+    <div class="bpt"><strong>Monitoring:</strong> Set up RIPE Stat / BGPmon alerts for your prefix. Certificate transparency monitoring (crt.sh API) for lookalike domain detection within seconds of cert issuance.</div>
+  </div>
+</div></div>
+</div></div>
+
+<!-- PAGE 6 -->
+<div class="page"><div class="page-inner">
+<div class="page-front"><div class="comic-page">
+  <div class="ch-header"><span class="ch-icon">📡</span><div><div class="ch-num">MODULE 06</div><div class="ch-title">DETECTION ENGINEERING — SIGMA RULES</div></div></div>
+  <div class="panel pl2">
+    <div class="narr">// Sigma detection rules for phishing-related DNS activity</div>
+    <pre class="code"><span class="c-comment">title: DNS Query to Newly Registered Phishing Domain</span>
+status: stable
+description: Detects DNS queries to domains registered
+             within 24h matching brand similarity patterns
+logsource:
+  category: dns
+detection:
+  selection:
+    dns.query.name|re: '<span class="c-warn">(bank|paypal|microsoft|gtbank).{0,20}\.(com|ng|net)</span>'
+    dns.registration_age_hours: <span class="c-bad">|lt: 24</span>
+  filter_legit:
+    dns.query.name|endswith:
+      - 'gtbank.com'
+      - 'microsoft.com'
+  condition: <span class="c-good">selection and not filter_legit</span>
+falsepositives:
+  - New legitimate subdomains (verify with CTI)
+level: high
+tags:
+  - attack.initial_access
+  - attack.t1566.002  <span class="c-comment"># Spearphishing Link</span></pre>
+  </div>
+  <div class="panel pl4">
+    <div class="narr">// Additional high-value phishing detection rules:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;">
+      <span class="tag tg1">NXDomain storm (DGA)</span><span class="tag tg1">DNS tunnelling entropy</span>
+      <span class="tag tg1">Fast-flux TTL anomaly</span><span class="tag tg1">BEC impossible travel</span>
+      <span class="tag tg1">AiTM session replay</span><span class="tag tg1">Credential access post-click</span>
+    </div>
+  </div>
+</div></div>
+<div class="page-back"><div class="back-content">
+  <div class="bch">MODULE 06</div>
+  <div class="bttl">Detection Engineering</div>
+  <div class="bpts">
+    <div class="bpt"><strong>Sigma framework:</strong> Vendor-neutral detection rule format. Write once, convert to Splunk SPL, Elastic ESQL, Microsoft KQL, or any SIEM. Essential for portability.</div>
+    <div class="bpt"><strong>ATT&CK mapping:</strong> Tag rules with MITRE ATT&CK technique IDs (T1566.001 Spearphishing Attachment, T1566.002 Spearphishing Link) for coverage gap analysis.</div>
+    <div class="bpt"><strong>Domain age enrichment:</strong> Enrich DNS logs with WHOIS registration date in real-time. Queries to &lt;24h old domains matching brand patterns are high-confidence phishing signals.</div>
+    <div class="bpt"><strong>False positive management:</strong> Maintain allowlists of known legitimate new domains. Certificate transparency monitoring feeds provide advance notice of legitimate new subdomains.</div>
+  </div>
+</div></div>
+</div></div>
+
+<!-- PAGE 7 -->
+<div class="page"><div class="page-inner">
+<div class="page-front"><div class="comic-page">
+  <div class="ch-header"><span class="ch-icon">🏗️</span><div><div class="ch-num">MODULE 07</div><div class="ch-title">ZERO TRUST EMAIL ARCHITECTURE</div></div></div>
+  <div class="panel pl">
+    <div class="narr">// Complete email security stack — defence in depth</div>
+    <table class="tbl">
+      <tr><th>LAYER</th><th>CONTROL</th><th>BYPASSED BY</th><th>HARDENS WITH</th></tr>
+      <tr><td>DNS</td><td>DMARC p=reject</td><td class="ng">Display name spoof</td><td class="ok">BIMI + VMC</td></tr>
+      <tr><td>Gateway</td><td>AI URL rewrite</td><td class="ng">AiTM proxies</td><td class="ok">Time-of-click scan</td></tr>
+      <tr><td>Sandbox</td><td>Detonation</td><td class="ng">Delayed payload</td><td class="ok">48h re-scan</td></tr>
+      <tr><td>Identity</td><td>FIDO2 MFA</td><td class="ng">SMS/TOTP</td><td class="ok">Origin binding</td></tr>
+      <tr><td>Session</td><td>CAE + Entra ID</td><td class="ng">Static tokens</td><td class="ok">Continuous eval</td></tr>
+      <tr><td>Endpoint</td><td>EDR + isolation</td><td class="ng">LOTL attacks</td><td class="ok">Behavioural AI</td></tr>
+    </table>
+  </div>
+  <div class="panel pl3">
+    <div class="speak"><div class="av">🏛️</div>
+    <div class="bubble info">Zero Trust principle applied to email: treat every inbound message as hostile until proven otherwise. Verify sender, verify link, verify identity — independently at each layer.</div></div>
+  </div>
+</div></div>
+<div class="page-back"><div class="back-content">
+  <div class="bch">MODULE 07</div>
+  <div class="bttl">Zero Trust Email</div>
+  <div class="bpts">
+    <div class="bpt"><strong>Time-of-click URL scanning:</strong> Links are not scanned at delivery — they are scanned when clicked. This catches URLs that were clean at delivery but weaponised later.</div>
+    <div class="bpt"><strong>CAE (Continuous Access Evaluation):</strong> Azure AD/Entra ID feature that revokes access tokens in near-real-time based on risk signals — blocks session cookie replay from phishing.</div>
+    <div class="bpt"><strong>BIMI (Brand Indicators for Message Identification):</strong> Displays organisation's verified logo in email clients. Requires DMARC enforcement + Verified Mark Certificate (VMC).</div>
+    <div class="bpt"><strong>Delayed payload defence:</strong> Some phishing links are benign at delivery, weaponised post-scan. Implement 48-hour re-scanning of all URLs delivered to mailboxes.</div>
+  </div>
+</div></div>
+</div></div>
+
+<!-- PAGE 8 -->
+<div class="page"><div class="page-inner">
+<div class="page-front"><div class="comic-page">
+  <div class="ch-header"><span class="ch-icon">🔴</span><div><div class="ch-num">MODULE 08</div><div class="ch-title">RED TEAM: PHISHING SIMULATION METHODOLOGY</div></div></div>
+  <div class="panel pl2">
+    <div class="narr">// Authorised phishing simulation — GoPhish / custom framework</div>
+    <pre class="code"><span class="c-comment">// Campaign metrics to track:</span>
+metrics = {
+  "delivery_rate":     sent / delivered,     <span class="c-comment">// email gateway effectiveness</span>
+  "open_rate":         opened / delivered,   <span class="c-comment">// curiosity / urgency response</span>
+  "click_rate":        clicked / opened,     <span class="c-comment">// URL inspection habits</span>
+  "cred_submit_rate":  submitted / clicked,  <span class="c-comment">// critical failure metric</span>
+  "report_rate":       reported / delivered, <span class="c-comment">// security culture metric</span>
+  "time_to_click":     mean(click_times),    <span class="c-comment">// decision velocity</span>
+  "time_to_report":    mean(report_times)    <span class="c-comment">// response speed</span>
+}
+
+<span class="c-comment">// Target: cred_submit &lt; 2%, report_rate &gt; 30%</span>
+<span class="c-comment">// Segment by department, role, prior training</span></pre>
+  </div>
+  <div class="panel plw">
+    <div class="speak"><div class="av">⚠️</div>
+    <div class="bubble evil">Ethical bounds: never simulate credential submission to third-party phishing pages. Capture click only. Immediate education for clickers — no blame culture.</div></div>
+  </div>
+</div></div>
+<div class="page-back"><div class="back-content">
+  <div class="bch">MODULE 08</div>
+  <div class="bttl">Phishing Simulation</div>
+  <div class="bpts">
+    <div class="bpt"><strong>GoPhish + custom phishlets:</strong> Open-source platform for authorised phishing simulations. Supports tracking pixels, credential capture pages, and detailed campaign analytics.</div>
+    <div class="bpt"><strong>Segmentation:</strong> Analyse results by department, seniority, prior training exposure. Finance and HR are consistently highest-risk — prioritise advanced training for these groups.</div>
+    <div class="bpt"><strong>Just-in-time training:</strong> Immediately redirect clickers to a short training module explaining what they missed. Training at point-of-failure is 6x more effective than annual CBT.</div>
+    <div class="bpt"><strong>Reporting culture:</strong> The report rate is more important than the click rate. An organisation where people report suspicious emails quickly is more resilient than one where nobody clicks but nobody reports either.</div>
+  </div>
+</div></div>
+</div></div>
+
+<!-- PAGE 9 -->
+<div class="page"><div class="page-inner">
+<div class="page-front"><div class="comic-page">
+  <div class="ch-header"><span class="ch-icon">⚡</span><div><div class="ch-num">MODULE 09</div><div class="ch-title">SOAR AUTOMATION — PHISHING RESPONSE</div></div></div>
+  <div class="panel pl4">
+    <div class="narr">// Automated phishing response playbook — Microsoft Sentinel / Splunk SOAR</div>
+    <pre class="code"><span class="c-comment">// Trigger: User reports phishing email</span>
+on_event("PhishingReported"):
+
+  T+00s: email.extract_iocs(reported_email)
+         <span class="c-comment">// → [domain, url, sender_ip, attachment_hash]</span>
+
+  T+02s: parallel([
+    vt.scan(iocs),           <span class="c-comment">// VirusTotal enrichment</span>
+    urlscan.submit(url),     <span class="c-comment">// live screenshot + analysis</span>
+    whois.query(domain),     <span class="c-comment">// registration age check</span>
+    dns.sinkhole(domain),    <span class="c-comment">// block immediately</span>
+  ])
+
+  T+05s: email.quarantine(campaign_matches)
+         <span class="c-comment">// find + pull all similar emails org-wide</span>
+
+  T+10s: if vt.malicious or age_hours &lt; 48:
+           identity.revokeSession(affected_users)
+           endpoint.isolate(if_clicked)
+
+  T+30s: ticket.create(severity, enriched_iocs)
+         threat_intel.share(iocs)  <span class="c-comment">// MISP / STIX/TAXII</span></pre>
+  </div>
+</div></div>
+<div class="page-back"><div class="back-content">
+  <div class="bch">MODULE 09</div>
+  <div class="bttl">SOAR Playbook</div>
+  <div class="bpts">
+    <div class="bpt"><strong>Mean Time to Respond (MTTR):</strong> Manual phishing response averages 4+ hours. SOAR automation reduces MTTR to &lt;60 seconds for containment actions.</div>
+    <div class="bpt"><strong>STIX/TAXII sharing:</strong> Standardised threat intelligence sharing format. Automatically push phishing IOCs to sector ISACs and AfricaCERT for coordinated defence.</div>
+    <div class="bpt"><strong>Org-wide quarantine:</strong> When one user reports a phishing email, SOAR searches all mailboxes for matching sender/subject/URL patterns and quarantines automatically.</div>
+    <div class="bpt"><strong>Feedback loop:</strong> SOAR enrichment data feeds back into ML models — confirmed phishing IOCs become training samples, continuously improving classifier accuracy.</div>
+  </div>
+</div></div>
+</div></div>
+
+<!-- PAGE 10 -->
+<div class="page"><div class="page-inner">
+<div class="page-front"><div class="comic-page">
+  <div class="ch-header"><span class="ch-icon">🎯</span><div><div class="ch-num">MODULE 10</div><div class="ch-title">ADVANCED THREAT SUMMARY & RESEARCH FRONTIERS</div></div></div>
+  <div class="panel pl">
+    <div class="narr">// Current research frontiers in anti-phishing</div>
+    <table class="tbl">
+      <tr><th>FRONTIER</th><th>CURRENT STATE</th><th>OPEN PROBLEMS</th></tr>
+      <tr><td>LLM detection</td><td class="wr">~78% accuracy</td><td>Watermarking, perplexity evasion</td></tr>
+      <tr><td>AI-DGA detection</td><td class="ok">&gt;95% known families</td><td>Zero-day AI-DGA evasion</td></tr>
+      <tr><td>AiTM detection</td><td class="wr">Heuristic only</td><td>Reliable real-time token binding</td></tr>
+      <tr><td>Post-quantum auth</td><td class="wr">NIST standards ready</td><td>DNS perf with larger DNSSEC keys</td></tr>
+      <tr><td>Federated CTI</td><td class="wr">Manual STIX/TAXII</td><td>Privacy-preserving ML sharing</td></tr>
+    </table>
+  </div>
+  <div class="panel pl2">
+    <div class="speak"><div class="av">🔭</div>
+    <div class="bubble info">The phishing arms race is an AI vs AI competition. Investment in detection robustness, phishing-resistant authentication, and coordinated threat intelligence sharing defines the next frontier.</div></div>
+  </div>
+  <div class="panel" style="text-align:center;padding:14px;background:rgba(139,92,246,0.04);">
+    <div style="font-family:'Exo 2',sans-serif;font-size:0.9rem;font-weight:900;
+      background:linear-gradient(135deg,#8B5CF6,#EC4899,#06B6D4);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px;">
+      END OF ADVANCED MODULE
+    </div>
+    <div style="font-size:0.65rem;color:var(--dim);margin-top:6px;">Phishing: Advanced Threat Analysis · By Gbemisola Esho · 2026</div>
+  </div>
+</div></div>
+<div class="page-back"><div class="back-content">
+  <div class="bch">MODULE 10</div>
+  <div class="bttl">Research Frontiers</div>
+  <div class="bpts">
+    <div class="bpt"><strong>Post-quantum DNSSEC:</strong> NIST-standardised algorithms (CRYSTALS-Dilithium, FALCON) produce larger signatures. DNS performance impact requires AI-optimised caching strategies.</div>
+    <div class="bpt"><strong>Federated learning for CTI:</strong> Train shared phishing detection models across organisations without sharing raw DNS query data — privacy-preserving collective defence.</div>
+    <div class="bpt"><strong>Token binding revival:</strong> RFC 8471 token binding cryptographically binds session tokens to TLS channel — makes AiTM attacks cryptographically impossible. Awaiting browser re-adoption.</div>
+    <div class="bpt"><strong>Continuous research:</strong> Follow Google Project Zero, Cloudflare Research, Cisco Talos, and academic venues (IEEE S&P, USENIX Security, ACM CCS) for emerging attack/defence developments.</div>
+  </div>
+</div></div>
+</div></div>
+
+</div></div>
+<div class="controls">
+  <button class="btn bn" id="btnPrev" onclick="nav(-1)" disabled>◀ PREV</button>
+  <button class="btn bf" onclick="flip()">⟳ FLIP</button>
+  <button class="btn bt" onclick="openTOC()">≡ IDX</button>
+  <button class="btn bn" id="btnNext" onclick="nav(1)">NEXT ▶</button>
+</div>
+<p class="hint">// flip → analysis notes · ←→ navigate · space → flip</p>
+<div class="modal-overlay" id="tocModal" onclick="closeTOC(event)">
+  <div class="modal">
+    <h2>// MODULE INDEX</h2>
+    <div id="tocList"></div>
+    <button class="mc" onclick="document.getElementById('tocModal').classList.remove('open')">[ CLOSE ]</button>
+  </div>
+</div>
+<div class="footer"><div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">
+  <img src="data:image/jpeg;base64,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" alt="AFRALO" style="height:24px;width:auto;"/>
+  <span>// PHISHING: ADVANCED THREAT ANALYSIS · GBEMISOLA ESHO · 2026 · AFRALO / ICANN AT-LARGE</span>
+</div></div>
+<script>
+const CH=[
+  {n:"MOD.01",t:"AiTM Proxy Architecture"},
+  {n:"MOD.02",t:"Adversarial ML Evasion"},
+  {n:"MOD.03",t:"Infrastructure Graph Analysis"},
+  {n:"MOD.04",t:"LLM Spear Phishing"},
+  {n:"MOD.05",t:"DNSSEC & RPKI Hardening"},
+  {n:"MOD.06",t:"Detection Engineering"},
+  {n:"MOD.07",t:"Zero Trust Email"},
+  {n:"MOD.08",t:"Red Team Simulation"},
+  {n:"MOD.09",t:"SOAR Automation"},
+  {n:"MOD.10",t:"Research Frontiers"},
+];
+let cur=0;const tot=10;
+const allP=document.querySelectorAll('.page');
+function ui(){
+  allP.forEach((p,i)=>p.classList.toggle('active',i===cur));
+  document.getElementById('btnPrev').disabled=cur===0;
+  document.getElementById('btnNext').disabled=cur===tot-1;
+  document.getElementById('pFill').style.width=((cur+1)/tot*100)+'%';
+  document.getElementById('pTxt').textContent=String(cur+1).padStart(2,'0')+'/'+String(tot).padStart(2,'0');
+  const inn=allP[cur].querySelector('.page-inner');
+  if(inn)inn.classList.remove('flipped');
+}
+function nav(d){const n=cur+d;if(n>=0&&n<tot){cur=n;ui();}}
+function flip(){const inn=allP[cur].querySelector('.page-inner');if(inn)inn.classList.toggle('flipped');}
+function openTOC(){
+  document.getElementById('tocList').innerHTML=CH.map((c,i)=>`
+    <div class="ti" onclick="goto(${i})">
+      <div class="tn">${String(i+1).padStart(2,'0')}</div>
+      <div><div class="tc">${c.n}</div><div class="ts">${c.t}</div></div>
+    </div>`).join('');
+  document.getElementById('tocModal').classList.add('open');
+}
+function closeTOC(e){if(!e||e.target===document.getElementById('tocModal'))document.getElementById('tocModal').classList.remove('open');}
+function goto(i){cur=i;ui();document.getElementById('tocModal').classList.remove('open');}
+let sx=0;
+document.getElementById('book').addEventListener('touchstart',e=>{sx=e.touches[0].clientX;});
+document.getElementById('book').addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>50)nav(dx<0?1:-1);});
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')nav(1);if(e.key==='ArrowLeft')nav(-1);if(e.key===' '){e.preventDefault();flip();}});
+ui();
+</script>
+</body>
+</html>
